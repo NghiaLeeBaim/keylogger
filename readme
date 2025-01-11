@@ -1,0 +1,83 @@
+#Phiên bản tiếng Việt
+# Script Keylogger với Gửi Email
+
+Dự án này là một keylogger được xây dựng bằng Python, có khả năng ghi lại các phím nhấn trên hệ thống, lưu chúng vào file và định kỳ gửi nội dung file log qua email đến địa chỉ được chỉ định.
+
+## Tính năng
+
+- Ghi lại tất cả các phím nhấn, bao gồm các phím đặc biệt (như Enter, Space, Tab).
+- Lưu nhật ký phím nhấn vào một file văn bản.
+- Định kỳ gửi nội dung file log qua email.
+- Tự động xóa file log sau khi gửi email.
+- Chạy ẩn trong nền và có thể ẩn cửa sổ console.
+
+## Yêu cầu
+
+- Python 3.x
+- Các thư viện Python cần thiết:
+  - `pynput`
+  - `logging`
+  - `smtplib`
+  - `email`
+  - `threading`
+  - `zipfile`
+
+Để cài đặt các thư viện, bạn có thể sử dụng lệnh sau:
+
+```bash
+pip install pynput
+```
+
+## Cấu hình
+
+Cập nhật các biến sau trong script để cấu hình keylogger:
+
+- **Cài đặt Email**
+  - `EMAIL_ADDRESS`: Địa chỉ email của bạn dùng để gửi file log.
+  - `EMAIL_PASSWORD`: Mật khẩu email.
+  - `TO_EMAIL`: Địa chỉ email nhận file log.
+  - `SMTP_SERVER`: Máy chủ SMTP (mặc định: `smtp.gmail.com`).
+  - `SMTP_PORT`: Cổng SMTP (mặc định: `587`).
+
+- **Cài đặt File Log**
+  - `LOG_DIR`: Thư mục để lưu trữ file log (mặc định: thư mục tạm của hệ thống).
+  - `LOG_FILE`: Tên file log.
+  - `ZIP_FILE`: Tên file log được nén.
+
+- **Thời gian gửi email**
+  - `EMAIL_INTERVAL`: Khoảng thời gian (tính bằng giây) để gửi file log qua email (mặc định: `20`).
+
+## Hướng dẫn sử dụng
+
+1. Cấu hình script với thông tin email và các thiết lập chính xác.
+2. Chạy script:
+
+   ```bash
+   python keylogger.py
+   ```
+
+3. Keylogger sẽ chạy trong nền và ghi lại các phím nhấn.
+4. File log sẽ được gửi qua email theo khoảng thời gian đã thiết lập.
+
+## Cách hoạt động
+
+1. **Ghi nhật ký phím nhấn**:
+   - Script sử dụng thư viện `pynput` để ghi lại các phím nhấn.
+   - Các phím nhấn được lưu vào một file văn bản.
+
+2. **Gửi email**:
+   - Một luồng chạy nền sẽ định kỳ đọc file log.
+   - Nội dung được gửi qua email sử dụng thư viện `smtplib`.
+   - Sau khi gửi, file log được xóa để tránh trùng lặp nội dung.
+
+3. **Ẩn cửa sổ console**:
+   - Script ẩn cửa sổ console trên hệ điều hành Windows bằng thư viện `ctypes`.
+
+## Cảnh báo bảo mật
+
+Script này chỉ dành cho mục đích học tập. Việc sử dụng keylogger mà không được phép là bất hợp pháp và phi đạo đức. Hãy sử dụng một cách có trách nhiệm và đảm bảo bạn có sự cho phép rõ ràng để giám sát bất kỳ hệ thống nào.
+
+## Tuyên bố từ chối trách nhiệm
+
+Nhà phát triển không chịu trách nhiệm cho bất kỳ việc lạm dụng nào của script này. Nó chỉ được sử dụng cho mục đích học tập và các trường hợp sử dụng được phép.
+
